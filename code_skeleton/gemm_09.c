@@ -7,8 +7,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int MC;
-int KC;
+#define MC -1
+#define MR -1
+#define NC -1
+#define NR -1
+#define KC -1
 
 #define alpha( a,i,j ) a[ (j)*ldA + (i) ]   // map alpha( i,j ) to array A
 #define beta( b,i,j )  b[ (j)*ldB + (i) ]   // map beta( i,j ) to array B
@@ -74,6 +77,7 @@ static inline void PackPanelB_KCxNC( int k, int n, double *B, int ldB, double *B
         Btilde += k * jb;
     }
 }
+
 void MyGemm(int m, int n, int k, double *A, int ldA,
             double *B, int ldB, double *C, int ldC)
 {
