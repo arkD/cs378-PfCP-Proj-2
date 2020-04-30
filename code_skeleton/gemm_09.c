@@ -86,8 +86,8 @@ void MyGemm(int m, int n, int k, double *A, int ldA,
         exit( 0 );
     }
     /* Optimized packing by using aligned buffers */
-    double* Atilde = (double *) _mm_malloc(MC*KC*sizeof(double));
-    double* Btilde = (double *) _mm_malloc(KC*NC*sizeof(double));
+    double* Atilde = (double *) _mm_malloc(MC*KC*sizeof(double), 64);
+    double* Btilde = (double *) _mm_malloc(KC*NC*sizeof(double), 64);
     /*loop5*/
     for ( int j=0; j<n; j+=NC ) {
         int njb = min(NC, n - j);  /* Last loop may not involve a full block */
