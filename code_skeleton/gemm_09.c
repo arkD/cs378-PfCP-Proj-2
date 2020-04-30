@@ -18,7 +18,7 @@ int KC;
 
 
 
-void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, double *Atilde )
+static inline void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, double *Atilde )
 /* Pack a micro-panel of A into buffer pointed to by Atilde.
  * TODO: Use vector intrinsics to speed up*/
 {
@@ -31,7 +31,7 @@ void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, double *Atilde )
     {
     }
 }
-void PackBlockA_MCxKC( int m, int k, double *A, int ldA, double *Atilde )
+static inline void PackBlockA_MCxKC( int m, int k, double *A, int ldA, double *Atilde )
 /* Pack a MC x KC block of A.  MC is assumed to be a multiple of MR.  The block is
    packed into Atilde a micro-panel at a time. If necessary, the last micro-panel
    is padded with rows of zeroes. */
@@ -42,7 +42,7 @@ void PackBlockA_MCxKC( int m, int k, double *A, int ldA, double *Atilde )
         Atilde += ib * k;
     }
 }
-void PackMicroPanelB_KCxNR( int k, int n, double *B, int ldB, double *Btilde )
+static inline void PackMicroPanelB_KCxNR( int k, int n, double *B, int ldB, double *Btilde )
 /* Pack a micro-panel of B into buffer pointed to by Btilde.
    This is an unoptimized implementation for general KC and NR. */
 {
@@ -61,7 +61,7 @@ void PackMicroPanelB_KCxNR( int k, int n, double *B, int ldB, double *Btilde )
         }
 }
 
-void PackPanelB_KCxNC( int k, int n, double *B, int ldB, double *Btilde )
+static inline void PackPanelB_KCxNC( int k, int n, double *B, int ldB, double *Btilde )
 /* Pack a KC x NC panel of B.  NC is assumed to be a multiple of NR.  The block is
    packed into Btilde a micro-panel at a time. If necessary, the last micro-panel
    is padded with columns of zeroes.

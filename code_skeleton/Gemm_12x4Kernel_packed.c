@@ -9,7 +9,7 @@
 #include<immintrin.h>
 
 /* 12x4 */
-void Gemm_MRxNRKernel_Packed( int k,
+static inline void Gemm_MRxNRKernel_Packed( int k,
                        double *MP_A, double *MP_B, double *C, int ldC )
 {
     /* Declare vector registers to hold 4x4 C and load them */
