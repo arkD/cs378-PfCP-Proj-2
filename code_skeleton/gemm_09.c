@@ -91,26 +91,26 @@ void MyGemm(int m, int n, int k, double *A, int ldA,
     /*loop5*/
     for ( int j=0; j<n; j+=NC ) {
         int njb = min(NC, n - j);  /* Last loop may not involve a full block */
-        double* Bj = &beta(B,0,j);  /* j column of B */
-        double* Cj = &gamma(c,0,j);  /* j column of C*/
+        double *restrict Bj = &beta(B,0,j);  /* j column of B */
+        double *restrict Cj = &gamma(c,0,j);  /* j column of C*/
         /*loop4*/
         for ( int p=0; p<k; p+=KC ) {
             int kpb = min(KC, k - p);    /* Last loop may not involve a full block */
             PackPanelB_KCxNC(kpb, njb, &beta(Bj, p, 0), ldB, Btilde);
-            double *Ap = &alpha(0, p);  /* column partition A */
+            double *restrict Ap = &alpha(0, p);  /* column partition A */
             /*loop3*/
             for (int i = 0; i < m; i += MC) {
                 int mib = min(MC, m - i);    /* Last loop may not involve a full block */
                 PackBlockA_MCxKC(ib, pb, &alpha(Ap, i, 0), ldA, Atilde);
-                double *Cji = &gamma(Cj, i, 0); /* ith row partion of Cj */
+                double *restrict Cji = &gamma(Cj, i, 0); /* ith row partion of Cj */
                 /* loop2, n, m, & k are replaced by njb, mib, kpb here */
                 for ( int j2=0; j2<njb; j2+=NR ) {
                     int jb = min(NR, njb - j2);
-                    double *MicroPanelB = &Btilde[j2 * kpb];
-                    double *Cjij2 = &gamma(Cji, 0, j2);
+                    double *restrict MicroPanelB = &Btilde[j2 * kpb];
+                    double *restrict Cjij2 = &gamma(Cji, 0, j2);
                     /*loop1*/
                     for (int i2 = 0; i2 < mib; i2 += MR) {
-                        int ib = min(MR, mib - i2);
+                        int ib = min(MR, mib - i2); /* unused?? */
                         Gemm_MRxNRKernel_Packed(kpb, &Atilde[i2 * kpb],
                             MicroPanelB, &gamma(Cjij2, i2, 0), ldC);
                     }
