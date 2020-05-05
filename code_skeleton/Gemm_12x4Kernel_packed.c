@@ -2,9 +2,7 @@
 // Created by arkd on 4/30/2020.
 //
 
-#define alpha( i,j ) A[ (j)*ldA + (i) ]   // map alpha( i,j ) to array A
-#define beta( i,j )  B[ (j)*ldB + (i) ]   // map beta( i,j ) to array B
-#define gamma( i,j ) C[ (j)*ldC + (i) ]   // map gamma( i,j ) to array C
+#define gamma(c, i,j ) c[ (j)*ldC + (i) ]   // map gamma( i,j ) to array C
 
 #include<immintrin.h>
 
@@ -13,20 +11,20 @@ static inline void Gemm_MRxNRKernel_Packed( int k,
                        double *MP_A, double *MP_B, double *C, int ldC )
 {
     /* Declare vector registers to hold 4x4 C and load them */
-    __m256d gamma_0123_0 = _mm256_loadu_pd( &gamma( 0,0 ) );
-    __m256d gamma_0123_1 = _mm256_loadu_pd( &gamma( 0,1 ) );
-    __m256d gamma_0123_2 = _mm256_loadu_pd( &gamma( 0,2 ) );
-    __m256d gamma_0123_3 = _mm256_loadu_pd( &gamma( 0,3 ) );
+    __m256d gamma_0123_0 = _mm256_loadu_pd( &gamma( C,0,0 ) );
+    __m256d gamma_0123_1 = _mm256_loadu_pd( &gamma( C,0,1 ) );
+    __m256d gamma_0123_2 = _mm256_loadu_pd( &gamma( C,0,2 ) );
+    __m256d gamma_0123_3 = _mm256_loadu_pd( &gamma( C,0,3 ) );
 
-    __m256d gamma_4567_0 = _mm256_loadu_pd( &gamma( 4,0 ) );
-    __m256d gamma_4567_1 = _mm256_loadu_pd( &gamma( 4,1 ) );
-    __m256d gamma_4567_2 = _mm256_loadu_pd( &gamma( 4,2 ) );
-    __m256d gamma_4567_3 = _mm256_loadu_pd( &gamma( 4,3 ) );
+    __m256d gamma_4567_0 = _mm256_loadu_pd( &gamma( C,4,0 ) );
+    __m256d gamma_4567_1 = _mm256_loadu_pd( &gamma( C,4,1 ) );
+    __m256d gamma_4567_2 = _mm256_loadu_pd( &gamma( C,4,2 ) );
+    __m256d gamma_4567_3 = _mm256_loadu_pd( &gamma( C,4,3 ) );
 
-    __m256d gamma_891011_0 = _mm256_loadu_pd( &gamma( 8,0 ) );
-    __m256d gamma_891011_1 = _mm256_loadu_pd( &gamma( 8,1 ) );
-    __m256d gamma_891011_2 = _mm256_loadu_pd( &gamma( 8,2 ) );
-    __m256d gamma_891011_3 = _mm256_loadu_pd( &gamma( 8,3 ) );
+    __m256d gamma_891011_0 = _mm256_loadu_pd( &gamma( C,8,0 ) );
+    __m256d gamma_891011_1 = _mm256_loadu_pd( &gamma( C,8,1 ) );
+    __m256d gamma_891011_2 = _mm256_loadu_pd( &gamma( C,8,2 ) );
+    __m256d gamma_891011_3 = _mm256_loadu_pd( &gamma( C,8,3 ) );
     for ( int p=0; p<k; p++ ){
         /* Declare vector register for load/broadcasting beta( p,j ) */
         __m256d beta_p_j;
@@ -63,18 +61,18 @@ static inline void Gemm_MRxNRKernel_Packed( int k,
     }
 
     /* Store the updated results */
-    _mm256_storeu_pd( &gamma(0,0), gamma_0123_0 );
-    _mm256_storeu_pd( &gamma(0,1), gamma_0123_1 );
-    _mm256_storeu_pd( &gamma(0,2), gamma_0123_2 );
-    _mm256_storeu_pd( &gamma(0,3), gamma_0123_3 );
+    _mm256_storeu_pd( &gamma(C,0,0), gamma_0123_0 );
+    _mm256_storeu_pd( &gamma(C,0,1), gamma_0123_1 );
+    _mm256_storeu_pd( &gamma(C,0,2), gamma_0123_2 );
+    _mm256_storeu_pd( &gamma(C,0,3), gamma_0123_3 );
 
-    _mm256_storeu_pd( &gamma(4,0), gamma_4567_0 );
-    _mm256_storeu_pd( &gamma(4,1), gamma_4567_1 );
-    _mm256_storeu_pd( &gamma(4,2), gamma_4567_2 );
-    _mm256_storeu_pd( &gamma(4,3), gamma_4567_3 );
+    _mm256_storeu_pd( &gamma(C,4,0), gamma_4567_0 );
+    _mm256_storeu_pd( &gamma(C,4,1), gamma_4567_1 );
+    _mm256_storeu_pd( &gamma(C,4,2), gamma_4567_2 );
+    _mm256_storeu_pd( &gamma(C,4,3), gamma_4567_3 );
 
-    _mm256_storeu_pd( &gamma(8,0), gamma_891011_0 );
-    _mm256_storeu_pd( &gamma(8,1), gamma_891011_1 );
-    _mm256_storeu_pd( &gamma(8,2), gamma_891011_2 );
-    _mm256_storeu_pd( &gamma(8,3), gamma_891011_3 );
+    _mm256_storeu_pd( &gamma(C,8,0), gamma_891011_0 );
+    _mm256_storeu_pd( &gamma(C,8,1), gamma_891011_1 );
+    _mm256_storeu_pd( &gamma(C,8,2), gamma_891011_2 );
+    _mm256_storeu_pd( &gamma(C,8,3), gamma_891011_3 );
 }
