@@ -9,9 +9,9 @@
 int MC;
 int KC;
 
-#define alpha( i,j ) A[ (j)*ldA + (i) ]   // map alpha( i,j ) to array A
-#define beta( i,j )  B[ (j)*ldB + (i) ]   // map beta( i,j ) to array B
-#define gamma( i,j ) C[ (j)*ldC + (i) ]   // map gamma( i,j ) to array C
+#define alpha( a, i,j ) a[ (j)*ldA + (i) ]   // map alpha( i,j ) to array A
+#define beta( b, i,j )  b[ (j)*ldB + (i) ]   // map beta( i,j ) to array B
+#define gamma( c, i,j ) c[ (j)*ldC + (i) ]   // map gamma( i,j ) to array C
 
 #define min( x, y ) ( ( x ) < ( y ) ? x : y )
 
@@ -43,51 +43,51 @@ void LoopFive( int m, int n, int k, double *A, int ldA,
                double *B, int ldB, double *C, int ldC )
 {
     for ( int j=0; j<n; j+=NC ) {
-        int jb = min( NC, n-j );    /* Last loop may not involve a full block */
-        LoopFour( m, jb, k, A, ldA, &beta( 0,j ), ldB, &gamma( 0,j ), ldC );
+        int njb = min( NC, n-j );    /* Last loop may not involve a full block */
+        LoopFour( m, njb, k, A, ldA, &beta(B, 0,j ), ldB, &gamma( C,0,j ), ldC );
     }
 }
 
-void LoopFour( int m, int n, int k, double *A, int ldA, double *B, int ldB,
-               double *C, int ldC )
+void LoopFour( int m, int njb, int k, double *A, int ldA, double *Bj, int ldB,
+               double *Cj, int ldC )
 {
     double *Btilde = ( double * ) malloc( KC * NC * sizeof( double ) );
 
     for ( int p=0; p<k; p+=KC ) {
         int pb = min( KC, k-p );    /* Last loop may not involve a full block */
-        PackPanelB_KCxNC( pb, n, &beta( p, 0 ), ldB, Btilde );
-        LoopThree( m, n, pb, &alpha( 0, p ), ldA, Btilde, C, ldC );
+        PackPanelB_KCxNC( pb, njb, &beta( Bj, p, 0 ), ldB, Btilde );
+        LoopThree( m, njb, pb, &alpha( A, 0, p ), ldA, Btilde, Cj, ldC );
     }
 
     free( Btilde);
 }
 
-void LoopThree( int m, int n, int k, double *A, int ldA, double *Btilde, double *C, int ldC )
+void LoopThree( int m, int njb, int kpb, double *Ap, int ldA, double *Btilde, double *Cj, int ldC )
 {
     double *Atilde = ( double * ) malloc( MC * KC * sizeof( double ) );
 
     for ( int i=0; i<m; i+=MC ) {
-        int ib = min( MC, m-i );    /* Last loop may not involve a full block */
-        PackBlockA_MCxKC( ib, k, &alpha( i, 0 ), ldA, Atilde );
-        LoopTwo( ib, n, k, Atilde, Btilde, &gamma( i,0 ), ldC );
+        int mib = min( MC, m-i );    /* Last loop may not involve a full block */
+        PackBlockA_MCxKC( mib, kpb, &alpha( Ap, i, 0 ), ldA, Atilde );
+        LoopTwo( mib, njb, kpb, Atilde, Btilde, &gamma( Cj,i,0 ), ldC );
     }
 
     free( Atilde);
 }
 
-void LoopTwo( int m, int n, int k, double *Atilde, double *Btilde, double *C, int ldC )
+void LoopTwo( int mib, int njb, int kpb, double *Atilde, double *Btilde, double *Cji, int ldC )
 {
-    for ( int j=0; j<n; j+=NR ) {
-        int jb = min( NR, n-j );
-        LoopOne( m, jb, k, Atilde, &Btilde[ j*k ], &gamma( 0,j ), ldC );
+    for ( int j2=0; j2<njb; j2+=NR ) {
+        int jb = min( NR, njb-j2 );
+        LoopOne( mib, jb, kpb, Atilde, &Btilde[ j2*kpb ], &gamma( Cji,0,j2 ), ldC );
     }
 }
 
-void LoopOne( int m, int n, int k, double *Atilde, double *MicroPanelB, double *C, int ldC )
+void LoopOne( int mib, int jb, int kpb, double *Atilde, double *MicroPanelB, double *Cjij2, int ldC )
 {
-    for ( int i=0; i<m; i+=MR ) {
-        int ib = min( MR, m-i );
-        Gemm_MRxNRKernel_Packed( k, &Atilde[ i*k ], MicroPanelB, &gamma( i,0 ), ldC );
+    for ( int i2=0; i2<mib; i2+=MR ) {
+        int ib = min( MR, mib-i2 );
+        Gemm_MRxNRKernel_Packed( kpb, &Atilde[ i2*kpb ], MicroPanelB, &gamma( Cjij2,i2,0 ), ldC );
     }
 }
 void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, double *Atilde )
@@ -99,7 +99,7 @@ void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, double *Atilde )
     if ( m == MR )   /* Full row size micro-panel.*/
         for ( int p=0; p<k; p++ )
             for ( int i=0; i<MR; i++ )
-                *Atilde++ = alpha( i, p );
+                *Atilde++ = alpha( A, i, p );
     else /* Not a full row size micro-panel.  To be implemented */
     {
     }
@@ -112,7 +112,7 @@ void PackBlockA_MCxKC( int m, int k, double *A, int ldA, double *Atilde )
 {
     for ( int i=0; i<m; i+= MR ){
         int ib = min( MR, m-i );
-        PackMicroPanelA_MRxKC( ib, k, &alpha( i, 0 ), ldA, Atilde );
+        PackMicroPanelA_MRxKC( ib, k, &alpha( A, i, 0 ), ldA, Atilde );
         Atilde += ib * k;
     }
 }
@@ -125,11 +125,11 @@ void PackMicroPanelB_KCxNR( int k, int n, double *B, int ldB, double *Btilde )
     if ( n == NR ) /* Full column width micro-panel.*/
         for ( int p=0; p<k; p++ )
             for ( int j=0; j<NR; j++ )
-                *Btilde++ = beta( p, j );
+                *Btilde++ = beta( B, p, j );
     else /* Not a full row size micro-panel.  We pad with zeroes. */
         for ( int p=0; p<k; p++ ) {
             for ( int j=0; j<n; j++ )
-                *Btilde++ = beta( p, j );
+                *Btilde++ = beta( B, p, j );
             for ( int j=n; j<NR; j++ )
                 *Btilde++ = 0.0;
         }
@@ -143,7 +143,7 @@ void PackPanelB_KCxNC( int k, int n, double *B, int ldB, double *Btilde )
     for ( int j=0; j<n; j+= NR ){
         int jb = min( NR, n-j );
 
-        PackMicroPanelB_KCxNR( k, jb, &beta( 0, j ), ldB, Btilde );
+        PackMicroPanelB_KCxNR( k, jb, &beta( B, 0, j ), ldB, Btilde );
         Btilde += k * jb;
     }
 }
