@@ -52,7 +52,7 @@ GNUM     := -DGNUM=$(NUM)
 # -------------- Target(s) ---------------
 
 all: driver.x
-
+	./driver.x
 # compilation rule
 %.o: %.c Makefile $(HEADERS)
 	@echo "Compiling $<"
