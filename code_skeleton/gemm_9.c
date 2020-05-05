@@ -7,11 +7,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MC -1
-#define MR -1
-#define NC -1
-#define NR -1
-#define KC -1
+#define NC 2016 /* column block size, 5th loop: C & B */
+#define KC 256 /* partition block size, 4th loop: A & B, 2nd loop: width A, 1st loop: height B */
+#define MC 72 /* column block size, 3rd loop: C & A */
+#define MR 12 /* row block size, 2nd loop: A, 1st loop: C */
+#define NR 4 /* column block size, 2nd loop: C & B, 1st loop: C */
 
 #define alpha( a,i,j ) a[ (j)*ldA + (i) ]   // map alpha( i,j ) to array A
 #define beta( b,i,j )  b[ (j)*ldB + (i) ]   // map beta( i,j ) to array B
