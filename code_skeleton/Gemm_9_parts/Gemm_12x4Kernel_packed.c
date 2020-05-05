@@ -32,7 +32,7 @@ static inline void Gemm_MRxNRKernel_Packed( int k,
         /* Declare a vector register to hold the current column of A and load
            it with the four elements of that column. */
         __m256d alpha_0123_p = _mm256_loadu_pd( MP_A );
-        __m256d alpha_4567_p = _mm256_loadu_pd( MP_A+4 ) );
+        __m256d alpha_4567_p = _mm256_loadu_pd( MP_A+4 );
         __m256d alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
 
         /* Load/broadcast beta( p,0 ). update gamma*/

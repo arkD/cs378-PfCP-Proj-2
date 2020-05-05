@@ -20,8 +20,8 @@
 #define min( x, y ) ( ( x ) < ( y ) ? x : y )
 
 /* 12x4 */
-static inline void Gemm_MRxNRKernel_Packed( int k,
-                                            double *MP_A, double *MP_B, double *C, int ldC )
+static inline void Gemm_MRxNRKernel_Packed( int k, double *MP_A, double *MP_B,
+                                            double *C, int ldC )
 {
     /* Declare vector registers to hold 4x4 C and load them */
     __m256d gamma_0123_0 = _mm256_loadu_pd( &gamma( C,0,0 ) );
@@ -45,7 +45,7 @@ static inline void Gemm_MRxNRKernel_Packed( int k,
         /* Declare a vector register to hold the current column of A and load
            it with the four elements of that column. */
         __m256d alpha_0123_p = _mm256_loadu_pd( MP_A );
-        __m256d alpha_4567_p = _mm256_loadu_pd( MP_A+4 ) );
+        __m256d alpha_4567_p = _mm256_loadu_pd( MP_A+4 );
         __m256d alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
 
         /* Load/broadcast beta( p,0 ). update gamma*/
@@ -98,7 +98,7 @@ static inline void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, doub
     if ( m == MR )   /* Full row size micro-panel.*/
         for ( int p=0; p<k; p++ )
             for ( int i=0; i<MR; i++ )
-                *Atilde++ = alpha( i, p );
+                *Atilde++ = alpha( A, i, p );
     else /* Not a full row size micro-panel. TODO: To be implemented, pad w/ zero's */
     {
     }
@@ -110,7 +110,7 @@ static inline void PackBlockA_MCxKC( int m, int k, double *A, int ldA, double *A
 {
     for ( int i=0; i<m; i+= MR ){
         int ib = min( MR, m-i );
-        PackMicroPanelA_MRxKC( ib, k, &alpha( i, 0 ), ldA, Atilde );
+        PackMicroPanelA_MRxKC( ib, k, &alpha( A, i, 0 ), ldA, Atilde );
         Atilde += ib * k;
     }
 }
@@ -123,11 +123,11 @@ static inline void PackMicroPanelB_KCxNR( int k, int n, double *B, int ldB, doub
     if ( n == NR ) /* Full column width micro-panel.*/
         for ( int p=0; p<k; p++ )
             for ( int j=0; j<NR; j++ )
-                *Btilde++ = beta( p, j );
+                *Btilde++ = beta( B, p, j );
     else /* Not a full row size micro-panel.  We pad with zeroes. */
         for ( int p=0; p<k; p++ ) {
             for ( int j=0; j<n; j++ )
-                *Btilde++ = beta( p, j );
+                *Btilde++ = beta( B, p, j );
             for ( int j=n; j<NR; j++ )
                 *Btilde++ = 0.0;
         }
@@ -142,7 +142,7 @@ static inline void PackPanelB_KCxNC( int k, int n, double *B, int ldB, double *B
     for ( int j=0; j<n; j+= NR ){
         int jb = min( NR, n-j );
 
-        PackMicroPanelB_KCxNR( k, jb, &beta( 0, j ), ldB, Btilde );
+        PackMicroPanelB_KCxNR( k, jb, &beta( B, 0, j ), ldB, Btilde );
         Btilde += k * jb;
     }
 }
@@ -165,16 +165,16 @@ void MyGemm(int m, int n, int k, double *A, int ldA,
     for ( int j=0; j<n; j+=NC ) {
         int njb = min(NC, n - j);  /* Last loop may not involve a full block */
         double *restrict Bj = &beta(B,0,j);  /* j column of B */
-        double *restrict Cj = &gamma(c,0,j);  /* j column of C*/
+        double *restrict Cj = &gamma(C,0,j);  /* j column of C*/
         /*loop4*/
         for ( int p=0; p<k; p+=KC ) {
             int kpb = min(KC, k - p);    /* Last loop may not involve a full block */
             PackPanelB_KCxNC(kpb, njb, &beta(Bj, p, 0), ldB, Btilde);
-            double *restrict Ap = &alpha(0, p);  /* column partition A */
+            double *restrict Ap = &alpha(A, 0, p);  /* column partition A */
             /*loop3*/
             for (int i = 0; i < m; i += MC) {
                 int mib = min(MC, m - i);    /* Last loop may not involve a full block */
-                PackBlockA_MCxKC(ib, pb, &alpha(Ap, i, 0), ldA, Atilde);
+                PackBlockA_MCxKC(mib, kpb, &alpha(Ap, i, 0), ldA, Atilde);
                 double *restrict Cji = &gamma(Cj, i, 0); /* ith row partion of Cj */
                 /* loop2, n, m, & k are replaced by njb, mib, kpb here */
                 for ( int j2=0; j2<njb; j2+=NR ) {
