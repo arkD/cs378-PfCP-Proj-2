@@ -103,9 +103,47 @@ static inline void PackMicroPanelB_KCxNR( int k, int n, double *B, int ldB, doub
     /* March through B in row-major order, packing into Btilde as we go. */
 
     if ( n == NR ) /* Full column width micro-panel.*/
-        for ( int p=0; p<k; p++ )
-            for ( int j=0; j<NR; j++ )
-                *Btilde++ = beta( B, p, j );
+        for ( int p=0; p<k; p+=8 ) {
+            *Btilde++ = beta( B, p, 0 );
+            *Btilde++ = beta( B, p, 1 );
+            *Btilde++ = beta( B, p, 2 );
+            *Btilde++ = beta( B, p, 3 );
+
+            *Btilde++ = beta( B, p+1, 0 );
+            *Btilde++ = beta( B, p+1, 1 );
+            *Btilde++ = beta( B, p+1, 2 );
+            *Btilde++ = beta( B, p+1, 3 );
+
+            *Btilde++ = beta( B, p+2, 0 );
+            *Btilde++ = beta( B, p+2, 1 );
+            *Btilde++ = beta( B, p+2, 2 );
+            *Btilde++ = beta( B, p+2, 3 );
+
+            *Btilde++ = beta( B, p+3, 0 );
+            *Btilde++ = beta( B, p+3, 1 );
+            *Btilde++ = beta( B, p+3, 2 );
+            *Btilde++ = beta( B, p+3, 3 );
+
+            *Btilde++ = beta( B, p+4, 0 );
+            *Btilde++ = beta( B, p+4, 1 );
+            *Btilde++ = beta( B, p+4, 2 );
+            *Btilde++ = beta( B, p+4, 3 );
+
+            *Btilde++ = beta( B, p+5, 0 );
+            *Btilde++ = beta( B, p+5, 1 );
+            *Btilde++ = beta( B, p+5, 2 );
+            *Btilde++ = beta( B, p+5, 3 );
+
+            *Btilde++ = beta( B, p+6, 0 );
+            *Btilde++ = beta( B, p+6, 1 );
+            *Btilde++ = beta( B, p+6, 2 );
+            *Btilde++ = beta( B, p+6, 3 );
+
+            *Btilde++ = beta( B, p+7, 0 );
+            *Btilde++ = beta( B, p+7, 1 );
+            *Btilde++ = beta( B, p+7, 2 );
+            *Btilde++ = beta( B, p+7, 3 );
+        }
     else /* Not a full row size micro-panel.  We pad with zeroes. */
         for ( int p=0; p<k; p++ ) {
             for ( int j=0; j<n; j++ )
