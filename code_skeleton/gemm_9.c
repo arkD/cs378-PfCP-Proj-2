@@ -8,8 +8,8 @@
 #include <stdlib.h>
 
 #define NC 2016 /* column block size, 5th loop: C & B */
-#define KC 256 /* partition block size, 4th loop: A & B, 2nd loop: width A, 1st loop: height B */
-#define MC 72 /* column block size, 3rd loop: C & A */
+#define KC 224 /* partition block size, 4th loop: A & B, 2nd loop: width A, 1st loop: height B */
+#define MC 96 /* column block size, 3rd loop: C & A */
 #define MR 12 /* row block size, 2nd loop: A, 1st loop: C */
 #define NR 4 /* column block size, 2nd loop: C & B, 1st loop: C */
 
@@ -71,17 +71,38 @@ void MyGemm( int m, int n, int k, double *A, int ldA,
     _mm_free( Btilde);
 }
 static inline void PackMicroPanelA_MRxKC( int m, int k, double *A, int ldA, double *Atilde )
-/* Pack a micro-panel of A into buffer pointed to by Atilde.
-   This is an unoptimized implementation for general MR and KC. */
+/* Pack a micro-panel of A into buffer pointed to by Atilde. */
 {
     /* March through A in column-major order, packing into Atilde as we go. */
-
+    __m256d micro_A_4;
     if ( m == MR )   /* Full row size micro-panel.*/
-        for ( int p=0; p<k; p++ )
-            for ( int i=0; i<MR; i++ )
-                *Atilde++ = alpha( A, i, p );
-    else /* Not a full row size micro-panel.  To be implemented */
+        for ( int p=0; p<k; p++ ) {
+            int i = 0;
+            for ( ; i<MR-3; i+=4 ) {
+                micro_A_4 = _mm256_loadu_pd( &alpha(A, i, p ) );
+                _mm256_storeu_pd( Atilde, micro_A_4 );
+                Atilde+=4;
+            }
+            // deal with possibility MR isn't divisible by 4
+            for ( ; i<MR; i++)
+                *Atilde++ = alpha(A, i, p );
+        }
+    else /* Not a full row size micro-panel. pad w/ zero's */
     {
+        for ( int p=0; p<k; p++ ) {
+            int i = 0;
+            for ( ; i<m-3; i+=4 ) {
+                micro_A_4 = _mm256_loadu_pd( &alpha(A, i, p ) );
+                _mm256_storeu_pd( Atilde, micro_A_4 );
+                Atilde+=4;
+            }
+            // deal with remainder
+            for ( ; i<m; i++)
+                *Atilde++ = alpha(A, i, p );
+            // pad with zeros
+            for ( ; i<MR; i++)
+                *Atilde++ = 0.0;
+        }
     }
 }
 
@@ -147,8 +168,8 @@ static inline void Gemm_MRxNRKernel_Packed( int k, double *MP_A, double *MP_B,
 
     /* Declare vector register for load/broadcasting beta( p,j ) */
     __m256d beta_p_j;
-
-    for ( int p=0; p<k; p++ ) {
+    /* 8 unrolls */
+    for ( int p=0; p<k; p+=8 ) {
         /* Declare a vector register to hold the current column of A and load
            it with the four elements of that column. */
         __m256d alpha_0123_p   = _mm256_loadu_pd( MP_A );
@@ -163,6 +184,200 @@ static inline void Gemm_MRxNRKernel_Packed( int k, double *MP_A, double *MP_B,
 
         /* REPEAT for second, third, and fourth columns of C.  Notice that the
            current column of A needs not be reloaded. */
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+        /* roll 2 */
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+        /* roll 3*/
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+
+        /* roll 4*/
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+
+        /* roll 5*/
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+
+        /* roll 6*/
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+
+        /* roll 7*/
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+1 );
+        gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
+        gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
+        gamma_891011_1 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_1 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+2 );
+        gamma_0123_2 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_2 );
+        gamma_4567_2 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_2 );
+        gamma_891011_2 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_2 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B+3 );
+        gamma_0123_3 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_3 );
+        gamma_4567_3 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_3 );
+        gamma_891011_3 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_3 );
+
+        MP_A += MR;
+        MP_B += NR;
+
+        /* roll 8*/
+        alpha_0123_p   = _mm256_loadu_pd( MP_A );
+        alpha_4567_p   = _mm256_loadu_pd( MP_A+4 );
+        alpha_891011_p = _mm256_loadu_pd( MP_A+8 );
+
+        beta_p_j = _mm256_broadcast_sd( MP_B );
+        gamma_0123_0   = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_0 );
+        gamma_4567_0   = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_0 );
+        gamma_891011_0 = _mm256_fmadd_pd( alpha_891011_p, beta_p_j, gamma_891011_0 );
+
         beta_p_j = _mm256_broadcast_sd( MP_B+1 );
         gamma_0123_1 = _mm256_fmadd_pd( alpha_0123_p, beta_p_j, gamma_0123_1 );
         gamma_4567_1 = _mm256_fmadd_pd( alpha_4567_p, beta_p_j, gamma_4567_1 );
